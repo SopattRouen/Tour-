@@ -1,0 +1,44 @@
+services:
+  php:
+    image: php:8.2-apache
+    build:
+      context: ./wooxtravel  # Use the wooxtravel directory
+      dockerfile: Dockerfile
+    container_name: php_app
+    volumes:
+      - ./wooxtravel:/var/www/html:rw
+    ports:
+      - "8080:80"
+    depends_on:
+      - db
+      
+  db:
+    image: mysql:8.0
+    container_name: mysql_db
+    restart: always
+    environment:
+      MYSQL_ROOT_PASSWORD: root
+      MYSQL_DATABASE: my_database
+      MYSQL_USER: user
+      MYSQL_PASSWORD: password
+    ports:
+      - "8011:3306"  # Expose MySQL on port 8011
+    volumes:
+      - db_data:/var/lib/mysql  # Persistent MySQL data
+
+  phpmyadmin:
+    image: arm64v8/phpmyadmin  # Use arm64v8 for compatibility with arm64 architecture
+    container_name: phpmyadmin2
+    restart: unless-stopped
+    environment:
+      PMA_ARBITRARY: 1
+      PMA_HOST: db
+      PMA_USER: root
+      PMA_PASSWORD: root  # Match MySQL root password
+    ports:
+      - "8081:80"  # Use port 8081 to avoid conflict with php service
+    depends_on:
+      - db
+
+volumes:
+  db_data:
