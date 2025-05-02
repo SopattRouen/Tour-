@@ -9,13 +9,14 @@
 
     if (isset($_POST['submit'])) {
         // Check if fields are empty
-        if (empty($_POST['username']) || empty($_POST['email']) || empty($_POST['password'])) {
+        if (empty($_POST['username']) || empty($_POST['email']) || empty($_POST['password']) || empty($_POST['role'])) {
             echo "<script>alert('Please fill all fields');</script>";
         } else {
             // Sanitize and validate inputs
             $username = trim($_POST['username']);
             $email = trim($_POST['email']);
             $password = trim($_POST['password']);
+            $role = trim($_POST['role']);
 
             if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
                 echo "<script>alert('Invalid email format');</script>";
@@ -25,16 +26,17 @@
 
                 try {
                     // Insert into the database
-                    $register = $conn->prepare("INSERT INTO users(username, email, mypassword) VALUES(:username, :email, :mypassword)");
+                    $register = $conn->prepare("INSERT INTO users(username, email, mypassword, role) VALUES(:username, :email, :mypassword, :role)");
                     $register->execute([
                         ":username" => $username,
                         ":email" => $email,
-                        ":mypassword" => $hashedPassword
+                        ":mypassword" => $hashedPassword,
+                        ":role" => $role // Insert the selected role
                     ]);
 
                     // Check if the insert was successful
                     if ($register->rowCount() > 0) {
-                        echo "<script>alert('User registered successfully');";
+                        echo "<script>alert('User registered successfully');</script>";
                         header("location: login.php");
                     } else {
                         echo "<script>alert('Failed to register user');</script>";
@@ -47,6 +49,7 @@
         }
     }
 ?>
+
 
   <div class="reservation-form">
     <div class="container">
@@ -78,6 +81,16 @@
                     <input type="password" name="password" class="password" placeholder="password" autocomplete="on" required>
                 </fieldset>
               </div>
+              <div class="col-md-12">
+                <fieldset>
+                    <label for="Role" class="form-label">Select Role</label>
+                    <select name="role" class="role" required>
+                        <option value="USER">User</option>
+                        <!-- <option value="ADMIN">Admin</option> -->
+                    </select>
+                </fieldset>
+              </div>
+
               <div class="col-lg-12">                        
                   <fieldset>
                       <button type="submit" name="submit" class="main-button">register</button>

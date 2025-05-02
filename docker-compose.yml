@@ -11,6 +11,8 @@ services:
       - "8080:80"
     depends_on:
       - db
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
       
   db:
     image: mysql:8.0

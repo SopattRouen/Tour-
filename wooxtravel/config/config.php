@@ -39,6 +39,7 @@
     define("DBNAME", "my_database");
     define("USER", "user");
     define("PASS", "password");
+    define('APPURLFILE', 'http://127.0.0.1:8001');
     
     // Wait for MySQL to be ready
     $maxAttempts = 5;
