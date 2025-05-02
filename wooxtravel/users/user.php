@@ -1,26 +1,38 @@
 <?php
-    ob_start();
-    require '../includes/header.php';
-    require '../config/config.php';
+// Start session safely
+if (session_status() === PHP_SESSION_NONE) {
+    session_start();
+}
 
-    if (isset($_SESSION['email'])) {
-        header("location: ".APPURL."");
-        exit(); // Stop execution after redirect
-    }
-    if(isset($_GET['id '])) {
-        $id = $_GET['id'];
-        $user_bookings = $conn->query ("SELECT * FROM bookings WHERE user_id='$id'"); $user_bookings->execute();
-        $AllUserBookings = $user_bookings->fetchAll (PDO:: FETCH_OBJ);
-        // var_dump ($user_bookings);
-    }else {
-        header ("location: 404.php");
-        exit();
-    }
+require '../includes/header.php';
+require '../config/config.php';
+
+// Redirect to homepage if user is not logged in
+if (!isset($_SESSION['user_id'])) {
+    header("Location: " . APPURL . "");
+    exit();
+}
+       
+// Validate the presence of 'id' in URL and fetch bookings for the user
+if (isset($_GET['id']) && is_numeric($_GET['id'])) {
+    $id = $_GET['id'];
+
+    // Use prepared statement to prevent SQL injection
+    $stmt = $conn->prepare("SELECT * FROM bookings WHERE user_id = :user_id");
+    $stmt->bindParam(':user_id', $id, PDO::PARAM_INT);
+    $stmt->execute();
+    $AllUserBookings = $stmt->fetchAll(PDO::FETCH_OBJ);
+} else {
+    // Redirect to 404 if 'id' is not present or invalid
+    header("Location: 404.php");
+    exit();
+}
 ?>
-<div class="container">
+
+<div class="container text-white">
     <div class="row">
-        <div class="col-12">
-            <table class="table" style="margin-top: 150px; color: var(--text-color); margin-bottom:100px">
+        <div class="col-md-12">
+            <table class="table text-white" style="margin-top: 150px; margin-bottom:100px;">
                 <thead>
                     <tr>
                         <th scope="col">Name</th>
@@ -33,26 +45,21 @@
                     </tr>
                 </thead>
                 <tbody>
-                    <tr>
-                    <th scope="row">1</th>
-                    <td>Mark</td>
-                    <td>Otto</td>
-                    <td>@mdo</td>
-                    </tr>
+                    <?php foreach($AllUserBookings as $Booking) : ?>
+                        <tr>
+                            <td><?php echo $Booking->name; ?></td>
+                            <td><?php echo $Booking->num_of_guests; ?></td>
+                            <td><?php echo $Booking->phone_number; ?></td>
+                            <td><?php echo (new DateTime($Booking->checkin_date))->format('Y-m-d'); ?></td>
+                            <td><?php echo $Booking->destination; ?></td>
+                            <td><?php echo $Booking->status; ?></td>
+                            <td>$<?php echo $Booking->payment; ?></td>
+                        </tr>
+                    <?php endforeach; ?>
                 </tbody>
             </table>
         </div>
     </div>
 </div>
-<style>
-    :root {
-        --text-color: #000; /* Default to black */
-    }
 
-    @media (prefers-color-scheme: dark) {
-        :root {
-            --text-color: #fff; /* White for dark mode */
-        }
-    }
-</style>
 <?php require '../includes/footer.php'; ?>

@@ -1,57 +1,67 @@
 <?php
-  ob_start();
-  require 'includes/header.php';
-  require 'config/config.php'; 
-  if(isset($_GET['id'])){
-    $id = $_GET['id'];
-    $country = $conn->query("SELECT * FROM countries WHERE id='$id'");
-    $country->execute();
-    $singleCountry = $country->fetch(PDO::FETCH_OBJ);
+if (session_status() === PHP_SESSION_NONE) {
+  session_start();
+}
+require 'config/config.php';
+require 'includes/header.php';
 
-    if (!$singleCountry) {
-      ob_start();
-      header("location: 404.php");
-      exit();
-    }
+if (!isset($_GET['id']) || !is_numeric($_GET['id'])) {
+  header("Location: 404.php");
+  exit();
+}
 
-    //images for the cities
-    $citiesImages = $conn->query("SELECT * FROM cities WHERE country_id='$id'");
-    $citiesImages->execute();
-    $singleImage = $citiesImages->fetchAll(PDO::FETCH_OBJ);
-  } else {
-    ob_start();
-    header("location: 404.php");
+$id = intval($_GET['id']);
+
+try {
+  // Get country info
+  $stmt = $conn->prepare("SELECT * FROM countries WHERE id = :id");
+  $stmt->execute(['id' => $id]);
+  $singleCountry = $stmt->fetch(PDO::FETCH_OBJ);
+
+  if (!$singleCountry) {
+    header("Location: 404.php");
     exit();
   }
 
-  // Selecting countries
-  $cities = $conn->query(
-    "SELECT cities.id AS id, cities.name AS name, cities.image AS image, cities.trip_days AS trip_days, cities.price AS price,
-    COUNT(bookings.city_id) AS count_bookings 
+  // Get city images
+  $stmt = $conn->prepare("SELECT * FROM cities WHERE country_id = :id");
+  $stmt->execute(['id' => $id]);
+  $singleImage = $stmt->fetchAll(PDO::FETCH_OBJ);
+
+  // Get all cities with booking count
+  $stmt = $conn->prepare("
+    SELECT 
+      cities.id AS id, cities.name AS name, cities.image AS image,
+      cities.trip_days AS trip_days, cities.price AS price,
+      COUNT(bookings.city_id) AS count_bookings 
     FROM cities 
     LEFT JOIN bookings ON cities.id = bookings.city_id 
-    WHERE cities.country_id = '$id' 
-    GROUP BY cities.id, cities.name, cities.image, cities.trip_days, cities.price"
-  );
-  $cities->execute();
-  $allCities = $cities->fetchAll(PDO::FETCH_OBJ);
+    WHERE cities.country_id = :id 
+    GROUP BY cities.id, cities.name, cities.image, cities.trip_days, cities.price
+  ");
+  $stmt->execute(['id' => $id]);
+  $allCities = $stmt->fetchAll(PDO::FETCH_OBJ);
 
-  // cities of every country
-  $cities_country = $conn->query("SELECT COUNT(country_id) AS num_city FROM cities WHERE country_id='$id'");
-  $cities_country->execute();
-  $num_cities = $cities_country->fetch(PDO::FETCH_OBJ);
+  // Count of cities for the country
+  $stmt = $conn->prepare("SELECT COUNT(country_id) AS num_city FROM cities WHERE country_id = :id");
+  $stmt->execute(['id' => $id]);
+  $num_cities = $stmt->fetch(PDO::FETCH_OBJ);
 
-  // number of bookings for every country
-  $num_country = $conn->query(
-    "SELECT COUNT(bookings.city_id) AS count_bookings
+  // Total bookings for the country
+  $stmt = $conn->prepare("
+    SELECT COUNT(bookings.city_id) AS count_bookings
     FROM cities 
     JOIN bookings ON cities.id = bookings.city_id 
-    WHERE cities.country_id = '$id'"
-  );
-  $num_country->execute();
-  $num_bookings = $num_country->fetch(PDO::FETCH_OBJ);
+    WHERE cities.country_id = :id
+  ");
+  $stmt->execute(['id' => $id]);
+  $num_bookings = $stmt->fetch(PDO::FETCH_OBJ);
 
-
+} catch (PDOException $e) {
+  // Optionally log this
+  echo "Database error: " . $e->getMessage();
+  exit();
+}
 ?>
   <!-- ***** Main Banner Area Start ***** -->
   <div class="about-main-content">
@@ -86,7 +96,7 @@
                 <?php foreach ($singleImage as $image) : ?>
                   <div class="item">
                     <div class="thumb">
-                      <img src="assets/images/<?php echo $image->image; ?>" alt="">
+                    <img src="<?php echo APPURLFILE . '/' . $image->image; ?>" alt="">
                       <h4><?php echo $image->name; ?></h4>
                     </div>
                   </div>
@@ -117,7 +127,7 @@
             <?php foreach ($allCities as $city) : ?>
               <div class="item">
                 <div class="thumb">
-                  <img src="assets/images/<?php echo $city->image; ?>" alt="">
+                <img src="<?php echo APPURLFILE . '/' . $city->image; ?>" alt="">
                   <div class="text">
                     <h4><?php echo $city->name; ?><br><span><i class="fa fa-users"></i> <?php echo $city->count_bookings; ?> Check Ins</span></h4>
                     <h6>$ <?php echo $city->price; ?><br><span>/person</span></h6>

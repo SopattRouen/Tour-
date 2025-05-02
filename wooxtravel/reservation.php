@@ -1,67 +1,82 @@
-<?php 
+<?php
+session_start();
 ob_start();
+
 require 'includes/header.php'; 
 require 'config/config.php'; 
 
-if(!isset($_SESSION['user_id'])){
-  header("location: ".APPURL."");
+if (!isset($_SESSION['user_id'])) {
+    header("location: " . APPURL);
+    exit();
 }
-if(isset($_GET['id'])){
-  $id = $_GET['id'];
-  $city = $conn->prepare("SELECT * FROM cities WHERE id=:id");
-  $city->execute([':id' => $id]);
-  $getCity = $city->fetch(PDO::FETCH_OBJ);
-}else{
-  header("location: 404.php");
+
+if (isset($_GET['id'])) {
+    $id = $_GET['id'];
+    $city = $conn->prepare("SELECT * FROM cities WHERE id = :id");
+    $city->execute([':id' => $id]);
+    $getCity = $city->fetch(PDO::FETCH_OBJ);
+    if (!$getCity) {
+        header("location: 404.php");
+        exit();
+    }
+} else {
+    header("location: 404.php");
+    exit();
 }
 
 if (isset($_POST['submit'])) {
-  // Check if fields are empty
-  if (empty($_POST['name']) || empty($_POST['phone_number']) || empty($_POST['num_of_guests']) || empty($_POST['checkin_date']) || empty($_POST['destination'])) {
-    echo "<script>alert('Please fill all fields');</script>";
-  } else {
-    // Sanitize and validate inputs
-    $name = trim($_POST['name']);
-    $phone_number = preg_replace('/[^0-9]/', '', trim($_POST['phone_number']));
-    $num_of_guests = trim($_POST['num_of_guests']);
-    $checkin_date = trim($_POST['checkin_date']);
-    $destination = trim($_POST['destination']);
-    $status = "pending";
-    $city_id = $id;
-    $user_id = $_SESSION['user_id'];
-    $payment = $num_of_guests * $getCity->price;
-    $_SESSION['payment'] = $payment;
-    try {
-      // Insert into the database
-      $booking = $conn->prepare("INSERT INTO bookings(name, phone_number, num_of_guests, checkin_date, destination, status, city_id, user_id, payment) VALUES(:name, :phone_number, :num_of_guests, :checkin_date, :destination, :status, :city_id, :user_id, :payment)");
-      if(date("Y-m-d") < $checkin_date){
-        $booking->execute([
-          ":name" => $name,
-          ":phone_number" => $phone_number,
-          ":num_of_guests" => $num_of_guests,
-          ":checkin_date" => $checkin_date,
-          ":destination" => $destination,
-          ":status" => $status,
-          ":city_id" => $city_id,
-          ":user_id" => $user_id,
-          ":payment" => $payment
-        ]);
+    if (
+        empty($_POST['name']) ||
+        empty($_POST['phone_number']) ||
+        empty($_POST['num_of_guests']) ||
+        empty($_POST['checkin_date']) ||
+        empty($_POST['destination'])
+    ) {
+        echo "<script>alert('Please fill all fields');</script>";
+    } else {
+        $name = trim($_POST['name']);
+        $phone_number = preg_replace('/[^0-9]/', '', trim($_POST['phone_number']));
+        $num_of_guests = (int) trim($_POST['num_of_guests']);
+        $checkin_date = trim($_POST['checkin_date']);
+        $destination = trim($_POST['destination']);
+        $status = "pending";
+        $city_id = $id;
+        $user_id = $_SESSION['user_id'];
+        $payment = $num_of_guests * $getCity->price;
+        $_SESSION['payment'] = $payment;
 
-        ob_start();
-        header("location: pay.php");
-        exit();
-      }else{
-        echo "<script>alert('Invalid checkin date');</script>";
-        exit();
-      }
-    } catch (PDOException $e) {
-      error_log("Database error: " . $e->getMessage());
-      echo "<script>alert('Database error: ');</script>". $e->getMessage();
+        try {
+            if (date("Y-m-d") < $checkin_date) {
+                $booking = $conn->prepare("INSERT INTO bookings (name, phone_number, num_of_guests, checkin_date, destination, status, city_id, user_id, payment) 
+                    VALUES (:name, :phone_number, :num_of_guests, :checkin_date, :destination, :status, :city_id, :user_id, :payment)");
+                
+                $booking->execute([
+                    ":name" => $name,
+                    ":phone_number" => $phone_number,
+                    ":num_of_guests" => $num_of_guests,
+                    ":checkin_date" => $checkin_date,
+                    ":destination" => $destination,
+                    ":status" => $status,
+                    ":city_id" => $city_id,
+                    ":user_id" => $user_id,
+                    ":payment" => $payment
+                ]);
+
+                header("location: pay.php");
+                exit();
+            } else {
+                echo "<script>alert('Invalid checkin date');</script>";
+                exit();
+            }
+        } catch (PDOException $e) {
+            error_log("Database error: " . $e->getMessage());
+            echo "<script>alert('Database error');</script>";
+        }
     }
-  }
 }
 ob_end_flush();
 ?>
+
 <div class="second-page-heading">
   <div class="container">
     <div class="row">
