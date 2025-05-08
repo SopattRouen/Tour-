@@ -26,57 +26,38 @@ if (isset($_GET['id'])) {
 
 if (isset($_POST['submit'])) {
     if (
-        empty($_POST['name']) ||
         empty($_POST['phone_number']) ||
         empty($_POST['num_of_guests']) ||
-        empty($_POST['checkin_date']) ||
-        empty($_POST['destination'])
+        empty($_POST['checkin_date']) 
     ) {
         echo "<script>alert('Please fill all fields');</script>";
     } else {
-        $name = trim($_POST['name']);
         $phone_number = preg_replace('/[^0-9]/', '', trim($_POST['phone_number']));
         $num_of_guests = (int) trim($_POST['num_of_guests']);
         $checkin_date = trim($_POST['checkin_date']);
-        $destination = trim($_POST['destination']);
-        $status = "pending";
         $city_id = $id;
-        $user_id = $_SESSION['user_id'];
-        $payment = $num_of_guests * $getCity->price;
-        $_SESSION['payment'] = $payment;
-
-        try {
-            if (date("Y-m-d") < $checkin_date) {
-                $booking = $conn->prepare("INSERT INTO bookings (name, phone_number, num_of_guests, checkin_date, destination, status, city_id, user_id, payment) 
-                    VALUES (:name, :phone_number, :num_of_guests, :checkin_date, :destination, :status, :city_id, :user_id, :payment)");
-                
-                $booking->execute([
-                    ":name" => $name,
-                    ":phone_number" => $phone_number,
-                    ":num_of_guests" => $num_of_guests,
-                    ":checkin_date" => $checkin_date,
-                    ":destination" => $destination,
-                    ":status" => $status,
-                    ":city_id" => $city_id,
-                    ":user_id" => $user_id,
-                    ":payment" => $payment
-                ]);
-
-                header("location: pay.php");
-                exit();
-            } else {
-                echo "<script>alert('Invalid checkin date');</script>";
-                exit();
-            }
-        } catch (PDOException $e) {
-            error_log("Database error: " . $e->getMessage());
-            echo "<script>alert('Database error');</script>";
-        }
+        
+        // Store booking details in session for summary and API call
+        $_SESSION['booking_details'] = [
+            "phone_number" => $phone_number,
+            "num_of_guests" => $num_of_guests,
+            "checkin_date" => $checkin_date,
+            "city_id" => $city_id,
+            "city_name" => $getCity->name,
+            "price" => $getCity->price,
+            "total" => $num_of_guests * $getCity->price
+        ];
+        
+        // Redirect to summary page instead of directly to payment
+        header("location: booking-summary.php");
+        exit();
     }
 }
+
 ob_end_flush();
 ?>
 
+<!-- HTML content remains unchanged -->
 <div class="second-page-heading">
   <div class="container">
     <div class="row">
@@ -129,12 +110,6 @@ ob_end_flush();
             </div>
             <div class="col-lg-6">
               <fieldset>
-                <label for="Name" class="form-label">Your Name</label>
-                <input type="text" name="name" class="Name" placeholder="Ex. John Smithee" autocomplete="on" required>
-              </fieldset>
-            </div>
-            <div class="col-lg-6">
-              <fieldset>
                 <label for="Number" class="form-label">Your Phone Number</label>
                 <input type="text" name="phone_number" class="Number" placeholder="Ex. +xxx xxx xxx" autocomplete="on" required>
               </fieldset>
@@ -142,12 +117,13 @@ ob_end_flush();
             <div class="col-lg-6">
                 <fieldset>
                   <label for="chooseGuests" class="form-label" style="color: black;">Number Of Guests</label>
-                  <select name="num_of_guests" class="form-select" aria-label="Default select example" id="chooseGuests" style="color: black;">
+                  <select name="num_of_guests" class="form-select" aria-label="Default select example" id="chooseGuests" style="color: black;" required>
                     <option selected disabled>ex. 3 or 4 or 5</option>
                     <option value="1">1</option>
                     <option value="2">2</option>
                     <option value="3">3</option>
-                    <option value="4+">4+</option>
+                    <option value="4">4</option>
+                    <option value="5">5</option>
                   </select>
                 </fieldset>
             </div>
@@ -159,10 +135,11 @@ ob_end_flush();
             </div>
             <div class="col-lg-12">
               <fieldset>
-                <label for="Number" class="form-label">Your Destination</label>
-                <input type="text" value="<?php echo $getCity->name; ?>" name="destination" class="Number" placeholder="" autocomplete="on" required>
+                <label class="form-label">Destination</label>
+                <input type="text" value="<?php echo htmlspecialchars($getCity->name); ?>" class="form-control" readonly>
               </fieldset>
             </div>
+
             <div class="col-lg-12">                        
               <fieldset>
                 <button name="submit" type="submit" class="main-button">Make Your Reservation and Pay Now</button>
@@ -174,4 +151,5 @@ ob_end_flush();
     </div>
   </div>
 </div>
+
 <?php require 'includes/footer.php'; ?>

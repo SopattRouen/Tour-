@@ -1,5 +1,4 @@
 <?php
-// Start session safely
 if (session_status() === PHP_SESSION_NONE) {
     session_start();
 }
@@ -7,23 +6,37 @@ if (session_status() === PHP_SESSION_NONE) {
 require '../includes/header.php';
 require '../config/config.php';
 
-// Redirect to homepage if user is not logged in
 if (!isset($_SESSION['user_id'])) {
-    header("Location: " . APPURL . "");
+    header("Location: " . APPURL);
     exit();
 }
-       
-// Validate the presence of 'id' in URL and fetch bookings for the user
-if (isset($_GET['id']) && is_numeric($_GET['id'])) {
-    $id = $_GET['id'];
 
-    // Use prepared statement to prevent SQL injection
-    $stmt = $conn->prepare("SELECT * FROM bookings WHERE user_id = :user_id");
-    $stmt->bindParam(':user_id', $id, PDO::PARAM_INT);
-    $stmt->execute();
-    $AllUserBookings = $stmt->fetchAll(PDO::FETCH_OBJ);
+// Check if ID is provided via URL
+if (isset($_GET['id']) && is_numeric($_GET['id'])) {
+    $userId = $_GET['id'];
+
+    // Initialize cURL
+    $ch = curl_init();
+    curl_setopt($ch, CURLOPT_URL, "http://host.docker.internal:8000/api/admin/bookings/getByUser/$userId?order=desc");
+    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+    curl_setopt($ch, CURLOPT_HTTPHEADER, [
+        "Authorization: Bearer " . $_SESSION['jwt_token'],
+        "Accept: application/json"
+    ]);
+
+    $apiResponse = curl_exec($ch);
+    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    curl_close($ch);
+
+    if ($httpCode === 200) {
+        $responseData = json_decode($apiResponse, true);
+        $AllUserBookings = $responseData['data'] ?? [];
+         // Sort by created_at or checkin_date descending
+    } else {
+        echo "<script>alert('Failed to load bookings');</script>";
+        $AllUserBookings = [];
+    }
 } else {
-    // Redirect to 404 if 'id' is not present or invalid
     header("Location: 404.php");
     exit();
 }
@@ -35,27 +48,31 @@ if (isset($_GET['id']) && is_numeric($_GET['id'])) {
             <table class="table text-white" style="margin-top: 150px; margin-bottom:100px;">
                 <thead>
                     <tr>
+                        <th scope="col">N.o</th>
+                        <th scope="col">Reciept Number</th>
                         <th scope="col">Name</th>
-                        <th scope="col">Number of Guests</th>
+                        <th scope="col">Guests</th>
                         <th scope="col">Phone</th>
-                        <th scope="col">Checkin_date</th>
+                        <th scope="col">Check-in Date</th>
                         <th scope="col">Destination</th>
-                        <th scope="col">Status</th>
-                        <th scope="col">Payment</th>
+                        <th scope="col">Trip Days</th>
+                        <th scope="col">Price</th>
                     </tr>
                 </thead>
                 <tbody>
-                    <?php foreach($AllUserBookings as $Booking) : ?>
-                        <tr>
-                            <td><?php echo $Booking->name; ?></td>
-                            <td><?php echo $Booking->num_of_guests; ?></td>
-                            <td><?php echo $Booking->phone_number; ?></td>
-                            <td><?php echo (new DateTime($Booking->checkin_date))->format('Y-m-d'); ?></td>
-                            <td><?php echo $Booking->destination; ?></td>
-                            <td><?php echo $Booking->status; ?></td>
-                            <td>$<?php echo $Booking->payment; ?></td>
-                        </tr>
-                    <?php endforeach; ?>
+                <?php foreach ($AllUserBookings as $index => $booking): ?>
+                    <tr>
+                        <td><?php echo $index + 1; ?></td> <!-- N.o -->
+                        <td><?php echo htmlspecialchars($booking['receipt_number']); ?></td>
+                        <td><?php echo htmlspecialchars($booking['user_name']); ?></td>
+                        <td><?php echo htmlspecialchars($booking['num_of_guests']); ?></td>
+                        <td><?php echo htmlspecialchars($booking['phone_number']); ?></td>
+                        <td><?php echo (new DateTime($booking['checkin_date']))->format('Y-m-d'); ?></td>
+                        <td><?php echo htmlspecialchars($booking['city_name']); ?></td>
+                        <td><?php echo htmlspecialchars($booking['trip_days']); ?></td>
+                        <td>$<?php echo htmlspecialchars($booking['price']); ?></td>
+                    </tr>
+                <?php endforeach; ?>
                 </tbody>
             </table>
         </div>
