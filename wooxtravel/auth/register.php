@@ -1,54 +1,73 @@
 <?php
-    require '../config/config.php';
-    require '../includes/header.php';
+ob_start(); // Start output buffering to allow header() later
 
-    // Redirect if user is already logged in
-    if (isset($_SESSION['email'])) {
-        header("location: ".APPURL."");
-    }
+require '../config/config.php';
+require '../includes/header.php';
 
-    if (isset($_POST['submit'])) {
-        // Check if fields are empty
-        if (empty($_POST['username']) || empty($_POST['email']) || empty($_POST['password']) || empty($_POST['role'])) {
-            echo "<script>alert('Please fill all fields');</script>";
+// Redirect if already logged in
+if (isset($_SESSION['email'])) {
+    header("Location: " . APPURL);
+    exit;
+}
+
+// Registration logic
+if (isset($_POST['submit'])) {
+    // Validate fields
+    if (empty($_POST['username']) || empty($_POST['email']) || empty($_POST['password'])) {
+        echo "<script>alert('Please fill all fields');</script>";
+    } else {
+        $username = trim($_POST['username']);
+        $email = trim($_POST['email']);
+        $password = trim($_POST['password']);
+
+        if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
+            echo "<script>alert('Invalid email format');</script>";
         } else {
-            // Sanitize and validate inputs
-            $username = trim($_POST['username']);
-            $email = trim($_POST['email']);
-            $password = trim($_POST['password']);
-            $role = trim($_POST['role']);
+            $apiUrl ='http://host.docker.internal:8000/api/auth/register';
 
-            if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
-                echo "<script>alert('Invalid email format');</script>";
+            $payload = json_encode([
+                "name" => $username,
+                "email" => $email,
+                "password" => $password
+            ]);
+
+            // Initialize cURL request
+            $ch = curl_init($apiUrl);
+            curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+            curl_setopt($ch, CURLOPT_POST, true);
+            curl_setopt($ch, CURLOPT_POSTFIELDS, $payload);
+            curl_setopt($ch, CURLOPT_HTTPHEADER, [
+                'Content-Type: application/json',
+                'Content-Length: ' . strlen($payload)
+            ]);
+
+            $response = curl_exec($ch);
+            $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+            $error = curl_error($ch);
+            curl_close($ch);
+
+            if ($error) {
+                echo "<script>alert('cURL Error: $error');</script>";
             } else {
-                // Hash password
-                $hashedPassword = password_hash($password, PASSWORD_DEFAULT);
+                $result = json_decode($response, true);
 
-                try {
-                    // Insert into the database
-                    $register = $conn->prepare("INSERT INTO users(username, email, mypassword, role) VALUES(:username, :email, :mypassword, :role)");
-                    $register->execute([
-                        ":username" => $username,
-                        ":email" => $email,
-                        ":mypassword" => $hashedPassword,
-                        ":role" => $role // Insert the selected role
-                    ]);
-
-                    // Check if the insert was successful
-                    if ($register->rowCount() > 0) {
-                        echo "<script>alert('User registered successfully');</script>";
-                        header("location: login.php");
-                    } else {
-                        echo "<script>alert('Failed to register user');</script>";
-                    }
-                } catch (PDOException $e) {
-                    error_log("Database error: " . $e->getMessage());
-                    echo "<script>alert('An error occurred. Please try again later.');</script>";
+                if ($httpCode === 201 || $httpCode === 200) {
+                    echo "<script>alert('User registered successfully');</script>";
+                    header("Location: login.php");
+                    exit;
+                } else {
+                    $message = isset($result['message']) ? $result['message'] : 'Failed to register user';
+                    echo "<script>alert('Error: " . htmlspecialchars($message) . "');</script>";
                 }
             }
         }
     }
+}
+
+ob_end_flush(); // Flush output buffer
 ?>
+
+
 
 
   <div class="reservation-form">

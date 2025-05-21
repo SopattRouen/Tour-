@@ -1,11 +1,28 @@
 <?php require 'includes/header.php'; ?>
 <?php require 'config/config.php'; ?>
 <?php
-// Selecting countries
-  $countries = $conn->query("SELECT countries.id AS id, countries.name AS name, countries.image AS image,countries.continent AS continent, countries.population AS population, countries.territory AS territory, countries.description AS description, AVG(cities.price) AS avg_price FROM countries JOIN cities ON countries.id = cities.country_id GROUP BY countries.id");
-  $countries->execute();
-  $allCountries = $countries->fetchAll(PDO::FETCH_OBJ);
+// Selecting countries with continent name and average trip price
+$countries = $conn->prepare("
+  SELECT 
+    countries.id AS id, 
+    countries.name AS name, 
+    countries.image AS image, 
+    continents.name AS continent, 
+    countries.population AS population, 
+    countries.territory AS territory, 
+    countries.description AS description, 
+    AVG(trips.price) AS avg_price 
+  FROM countries 
+  JOIN continents ON countries.continent_id = continents.id 
+  JOIN cities ON countries.id = cities.country_id 
+  JOIN trips ON cities.id = trips.city_id 
+  GROUP BY countries.id, countries.name, countries.image, continents.name, 
+           countries.population, countries.territory, countries.description
+");
+$countries->execute();
+$allCountries = $countries->fetchAll(PDO::FETCH_OBJ);
 ?>
+
 
   <!-- ***** Main Banner Area Start ***** -->
 <section id="section-1">

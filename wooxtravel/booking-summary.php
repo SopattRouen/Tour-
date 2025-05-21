@@ -114,7 +114,7 @@ $booking = $_SESSION['booking_details'];
         </div>
         
         <div class="action-buttons">
-            <a href="reservation.php?id=<?php echo $booking['city_id']; ?>" class="btn btn-back">Edit Reservation</a>
+        <a href="reservation.php?id=<?php echo $booking['trip_id']; ?>"class="btn btn-back">Edit Reservation</a>
             <form action="process-booking.php" method="post">
                 <button type="submit" class="btn btn-pay">Proceed to Payment</button>
             </form>

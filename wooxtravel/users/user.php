@@ -17,7 +17,7 @@ if (isset($_GET['id']) && is_numeric($_GET['id'])) {
 
     // Initialize cURL
     $ch = curl_init();
-    curl_setopt($ch, CURLOPT_URL, "http://host.docker.internal:8000/api/admin/bookings/getByUser/$userId?order=desc");
+    curl_setopt($ch, CURLOPT_URL, "http://host.docker.internal:8000/api/admin/bookings/getByUser/$userId?order=asc");
     curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
     curl_setopt($ch, CURLOPT_HTTPHEADER, [
         "Authorization: Bearer " . $_SESSION['jwt_token'],
@@ -53,6 +53,7 @@ if (isset($_GET['id']) && is_numeric($_GET['id'])) {
                         <th scope="col">Name</th>
                         <th scope="col">Guests</th>
                         <th scope="col">Phone</th>
+                        <th scope="col">Booked At</th>
                         <th scope="col">Check-in Date</th>
                         <th scope="col">Destination</th>
                         <th scope="col">Trip Days</th>
@@ -67,6 +68,7 @@ if (isset($_GET['id']) && is_numeric($_GET['id'])) {
                         <td><?php echo htmlspecialchars($booking['user_name']); ?></td>
                         <td><?php echo htmlspecialchars($booking['num_of_guests']); ?></td>
                         <td><?php echo htmlspecialchars($booking['phone_number']); ?></td>
+                        <td><?php echo (new DateTime($booking['booked_at']))->format('Y-m-d'); ?></td>
                         <td><?php echo (new DateTime($booking['checkin_date']))->format('Y-m-d'); ?></td>
                         <td><?php echo htmlspecialchars($booking['city_name']); ?></td>
                         <td><?php echo htmlspecialchars($booking['trip_days']); ?></td>

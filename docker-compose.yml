@@ -41,6 +41,19 @@ services:
       - "8081:80"  # Use port 8081 to avoid conflict with php service
     depends_on:
       - db
+  report: 
+    image: jsreport/jsreport:4.2.0
+    container_name: camcyber-jsreport
+    ports:
+      - "6205:5488"
+    environment:
+      - extensions_authentication_admin_username=admin
+      - extensions_authentication_admin_password=amt@2024
+      - extensions_authentication_enabled=true
+      - extensions_authentication_cookieSession_secret=secret-key
+    # networks:
+    #   - renthouse
+
 
 volumes:
   db_data:

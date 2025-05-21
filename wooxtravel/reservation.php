@@ -5,58 +5,85 @@ ob_start();
 require 'includes/header.php'; 
 require 'config/config.php'; 
 
+// Redirect if not logged in
 if (!isset($_SESSION['user_id'])) {
-    header("location: " . APPURL);
+    header("Location: " . APPURL);
     exit();
 }
 
-if (isset($_GET['id'])) {
-    $id = $_GET['id'];
-    $city = $conn->prepare("SELECT * FROM cities WHERE id = :id");
-    $city->execute([':id' => $id]);
-    $getCity = $city->fetch(PDO::FETCH_OBJ);
-    if (!$getCity) {
-        header("location: 404.php");
-        exit();
+// Validate and get city ID
+if (!isset($_GET['id']) || !is_numeric($_GET['id'])) {
+    header("Location: 404.php");
+    exit();
+}
+
+$id = (int)$_GET['id'];
+
+// Get trip details (now joining with cities to get city name)
+$trip = $conn->prepare("
+    SELECT t.id, t.price, t.start_date, c.name AS city_name 
+    FROM trips t
+    JOIN cities c ON t.city_id = c.id
+    WHERE t.id = :id
+");
+
+$trip->execute([':id' => $id]);
+$getTrip = $trip->fetch(PDO::FETCH_OBJ);
+
+if (!$getTrip) {
+    header("Location: 404.php");
+    exit();
+}
+
+// Default form values
+$phone_number = '';
+$num_of_guests = 1;
+$errors = [];
+
+// Process form submission
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['submit'])) {
+    // Validate and sanitize inputs
+    $phone_number = preg_replace('/[^0-9+]/', '', trim($_POST['phone_number']));
+    $num_of_guests = (int)$_POST['num_of_guests'];
+    
+    // Validate phone number
+    if (empty($phone_number)) {
+        $errors['phone_number'] = 'Phone number is required';
+    } elseif (strlen($phone_number) < 10) {
+        $errors['phone_number'] = 'Phone number is too short';
     }
-} else {
-    header("location: 404.php");
-    exit();
-}
-
-if (isset($_POST['submit'])) {
-    if (
-        empty($_POST['phone_number']) ||
-        empty($_POST['num_of_guests']) ||
-        empty($_POST['checkin_date']) 
-    ) {
-        echo "<script>alert('Please fill all fields');</script>";
-    } else {
-        $phone_number = preg_replace('/[^0-9]/', '', trim($_POST['phone_number']));
-        $num_of_guests = (int) trim($_POST['num_of_guests']);
-        $checkin_date = trim($_POST['checkin_date']);
-        $city_id = $id;
-        
-        // Store booking details in session for summary and API call
+    
+    // Validate number of guests
+    if ($num_of_guests < 1 || $num_of_guests > 10) {
+        $errors['num_of_guests'] = 'Number of guests must be between 1 and 10';
+    }
+    
+    // If no errors, proceed with booking
+    if (empty($errors)) {
+        // $_SESSION['booking_details'] = [
+        //     "phone_number" => $phone_number,
+        //     "num_of_guests" => $num_of_guests,
+        //     "trip_id" => $id,
+        //     "city_name" => $getTrip->city_name,
+        //     "price" => $getTrip->price,
+        //     "total" => $num_of_guests * $getTrip->price
+        // ];
         $_SESSION['booking_details'] = [
-            "phone_number" => $phone_number,
-            "num_of_guests" => $num_of_guests,
-            "checkin_date" => $checkin_date,
-            "city_id" => $city_id,
-            "city_name" => $getCity->name,
-            "price" => $getCity->price,
-            "total" => $num_of_guests * $getCity->price
-        ];
+          "phone_number" => $phone_number,
+          "num_of_guests" => $num_of_guests,
+          "trip_id" => $id,
+          "city_name" => $getTrip->city_name,
+          "price" => $getTrip->price,
+          "checkin_date" => $getTrip->start_date,
+          "total" => $num_of_guests * $getTrip->price
+      ];
+      
         
-        // Redirect to summary page instead of directly to payment
-        header("location: booking-summary.php");
+        header("Location: booking-summary.php");
         exit();
     }
 }
-
-ob_end_flush();
 ?>
-
 <!-- HTML content remains unchanged -->
 <div class="second-page-heading">
   <div class="container">
@@ -108,35 +135,40 @@ ob_end_flush();
             <div class="col-lg-12">
               <h4>Make Your <em>Reservation</em> Through This <em>Form</em></h4>
             </div>
+
             <div class="col-lg-6">
               <fieldset>
                 <label for="Number" class="form-label">Your Phone Number</label>
-                <input type="text" name="phone_number" class="Number" placeholder="Ex. +xxx xxx xxx" autocomplete="on" required>
+                <input type="text" name="phone_number" class="Number" placeholder="Ex. +xxx xxx xxx" autocomplete="on" required
+                       value="<?php echo htmlspecialchars($phone_number); ?>">
               </fieldset>
             </div>
-            <div class="col-lg-6">
-                <fieldset>
-                  <label for="chooseGuests" class="form-label" style="color: black;">Number Of Guests</label>
-                  <select name="num_of_guests" class="form-select" aria-label="Default select example" id="chooseGuests" style="color: black;" required>
-                    <option selected disabled>ex. 3 or 4 or 5</option>
-                    <option value="1">1</option>
-                    <option value="2">2</option>
-                    <option value="3">3</option>
-                    <option value="4">4</option>
-                    <option value="5">5</option>
-                  </select>
-                </fieldset>
-            </div>
+
             <div class="col-lg-6">
               <fieldset>
-                <label for="Number" class="form-label">Check In Date</label>
-                <input type="date" name="checkin_date" class="date" required>
+                <label for="chooseGuests" class="form-label" style="color: black;">Number Of Guests</label>
+                <select name="num_of_guests" class="form-select" aria-label="Default select example" id="chooseGuests" style="color: black;" required>
+                  <option disabled <?php echo $num_of_guests === '' ? 'selected' : ''; ?>>ex. 3 or 4 or 5</option>
+                  <?php for ($i = 1; $i <= 5; $i++): ?>
+                    <option value="<?php echo $i; ?>" <?php echo ($num_of_guests == $i) ? 'selected' : ''; ?>><?php echo $i; ?></option>
+                  <?php endfor; ?>
+                </select>
               </fieldset>
             </div>
+
             <div class="col-lg-12">
               <fieldset>
                 <label class="form-label">Destination</label>
-                <input type="text" value="<?php echo htmlspecialchars($getCity->name); ?>" class="form-control" readonly>
+                <input type="text" class="form-control" 
+                       value="<?php echo htmlspecialchars($getTrip->city_name); ?>" readonly>
+              </fieldset>
+            </div>
+
+            <div class="col-lg-6">
+              <fieldset>
+                <label class="form-label">Price Per Person</label>
+                <input type="text" class="form-control" 
+                       value="$<?php echo number_format($getTrip->price, 2); ?>" readonly>
               </fieldset>
             </div>
 

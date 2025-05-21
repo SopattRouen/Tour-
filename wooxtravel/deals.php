@@ -1,16 +1,33 @@
 <?php 
-  require 'includes/header.php';
-  require 'config/config.php'; 
+require 'includes/header.php';
+require 'config/config.php'; 
 
-  // Fetch cities
-  $cities = $conn->query("SELECT * FROM cities ORDER BY price DESC LIMIT 4");
-  $cities->execute();
-  $allCities = $cities->fetchAll(PDO::FETCH_OBJ);
+try {
+    // Fetch cities with their trips data
+    $cities = $conn->query("
+        SELECT 
+            c.id,
+            c.name,
+            c.image,
+            t.price,
+            t.trip_days
+        FROM cities c
+        JOIN trips t ON c.id = t.city_id
+        ORDER BY t.price DESC 
+        LIMIT 4
+    ");
+    $cities->execute();
+    $allCities = $cities->fetchAll(PDO::FETCH_OBJ);
 
-  // Fetch countries
-  $countries = $conn->query("SELECT * FROM countries");
-  $countries->execute();
-  $allCountries = $countries->fetchAll(PDO::FETCH_OBJ);
+    // Fetch countries
+    $countries = $conn->query("SELECT * FROM countries");
+    $countries->execute();
+    $allCountries = $countries->fetchAll(PDO::FETCH_OBJ);
+
+} catch (PDOException $e) {
+    echo "Database error: " . $e->getMessage();
+    exit();
+}
 ?>
 
 <div class="page-heading">
@@ -75,7 +92,7 @@
       <div class="col-lg-6 offset-lg-3">
         <div class="section-heading text-center">
           <h2>Best Weekly Offers In Each City</h2>
-          <p>Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore.</p>
+          <p>Discover amazing travel packages in our most popular destinations.</p>
         </div>
       </div>
       <?php if (!empty($allCities)) : ?>
@@ -85,7 +102,7 @@
               <div class="row">
                 <div class="col-lg-6">
                   <div class="image">
-                  <img src="<?php echo APPURLFILE . '/' . $city->image; ?>" alt="">
+                    <img src="<?php echo htmlspecialchars(APPURLFILE . '/' . $city->image); ?>" alt="<?php echo htmlspecialchars($city->name); ?>">
                   </div>
                 </div>
                 <div class="col-lg-6 align-self-center">
@@ -95,17 +112,21 @@
                     <div class="row">
                       <div class="col-6">
                         <i class="fa fa-clock"></i>
-                        <span class="list"><?php echo htmlspecialchars($city->trip_days); ?></span>
+                        <span class="list"><?php echo htmlspecialchars($city->trip_days); ?> Days</span>
                       </div>
                       <div class="col-6">
                         <i class="fa fa-map"></i>
                         <span class="list">Daily Places</span>
                       </div>
                     </div>
-                    <p>Limited Price: $<?php echo htmlspecialchars($city->price); ?> per person</p>
-                    <div class="main-button">
-                      <a href="reservation.php?id=<?php echo (int) $city->id; ?>">Make a Reservation</a>
-                    </div>
+                    <p>Limited Price: $<?php echo number_format(htmlspecialchars($city->price), 2); ?> per person</p>
+                    <?php if(isset($_SESSION['user_id'])) : ?>
+                      <div class="main-button">
+                        <a href="reservation.php?id=<?php echo (int) $city->id; ?>">Make a Reservation</a>
+                      </div>
+                    <?php else: ?>
+                      <p>Please <a href="<?php echo htmlspecialchars(APPURL); ?>/auth/login.php">Login</a> to make a reservation</p>
+                    <?php endif; ?>
                   </div>
                 </div>
               </div>

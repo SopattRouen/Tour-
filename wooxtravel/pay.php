@@ -1,11 +1,17 @@
 <?php
+session_start();
 require 'includes/header.php';
 require 'config/config.php';
 
-if(!isset($_SERVER['HTTP_REFERER'])) {
-    header('location: http://localhost:8080');
-    exit;
+// Check if user is logged in and has booking details
+if (!isset($_SESSION['user_id']) || !isset($_SESSION['booking_details']) || !isset($_SESSION['payment'])) {
+    header("Location: reservation.php");
+    exit();
 }
+
+$amount = $_SESSION['payment'];
+$userId = $_SESSION['user_id'];
+$bookingDetails = $_SESSION['booking_details'];
 ?>
 
 <!DOCTYPE html>
@@ -90,6 +96,17 @@ if(!isset($_SERVER['HTTP_REFERER'])) {
             margin-right: 8px;
         }
         
+        .booking-details {
+            margin-bottom: 20px;
+        }
+        
+        .booking-detail-row {
+            display: flex;
+            justify-content: space-between;
+            padding: 8px 0;
+            border-bottom: 1px solid #eee;
+        }
+        
         @media (max-width: 768px) {
             .payment-container {
                 margin: 50px 20px;
@@ -109,13 +126,27 @@ if(!isset($_SERVER['HTTP_REFERER'])) {
             <p>You're almost done! Please review your order details below.</p>
         </div>
         
+        <div class="booking-details">
+            <div class="booking-detail-row">
+                <span>Destination:</span>
+                <span><?php echo htmlspecialchars($bookingDetails['city_name']); ?></span>
+            </div>
+            <div class="booking-detail-row">
+                <span>Check-in Date:</span>
+                <span><?php echo htmlspecialchars($bookingDetails['checkin_date']); ?></span>
+            </div>
+            <div class="booking-detail-row">
+                <span>Number of Guests:</span>
+                <span><?php echo htmlspecialchars($bookingDetails['num_of_guests']); ?></span>
+            </div>
+        </div>
+        
         <div class="payment-details">
             <div>
-                <h4>Booking Summary</h4>
-                <p>Booking for <?php echo isset($_SESSION['booking_details']['num_of_guests']) ? htmlspecialchars($_SESSION['booking_details']['num_of_guests']) : '1'; ?> guest(s)</p>
+                <h4>Total Amount</h4>
             </div>
             <div class="payment-amount">
-                $<?php echo isset($_SESSION['payment']) ? htmlspecialchars($_SESSION['payment']) : '0.00'; ?>
+                $<?php echo number_format($amount, 2); ?>
             </div>
         </div>
         
@@ -138,7 +169,8 @@ if(!isset($_SERVER['HTTP_REFERER'])) {
     <script src="https://kit.fontawesome.com/a076d05399.js" crossorigin="anonymous"></script>
     
     <script>
-        const userId = <?php echo json_encode($_SESSION['user_id']); ?>;
+        const userId = <?php echo json_encode($userId); ?>;
+        const tripId = <?php echo json_encode($bookingDetails['trip_id']); ?>;
         
         paypal.Buttons({
             style: {
@@ -152,20 +184,20 @@ if(!isset($_SERVER['HTTP_REFERER'])) {
                 return actions.order.create({
                     purchase_units: [{
                         amount: {
-                            value: "<?php echo $_SESSION['payment']; ?>",
+                            value: "<?php echo $amount; ?>",
                             breakdown: {
                                 item_total: {
-                                    value: "<?php echo $_SESSION['payment']; ?>",
+                                    value: "<?php echo $amount; ?>",
                                     currency_code: "USD"
                                 }
                             }
                         },
                         items: [{
-                            name: "Booking Payment",
-                            description: "Payment for your booking",
+                            name: "Trip Booking: <?php echo htmlspecialchars($bookingDetails['city_name']); ?>",
+                            description: "Booking for <?php echo $bookingDetails['num_of_guests']; ?> guest(s)",
                             quantity: "1",
                             unit_amount: {
-                                value: "<?php echo $_SESSION['payment']; ?>",
+                                value: "<?php echo $amount; ?>",
                                 currency_code: "USD"
                             }
                         }]
@@ -175,12 +207,39 @@ if(!isset($_SERVER['HTTP_REFERER'])) {
             onApprove: (data, actions) => {
                 return actions.order.capture().then(function(orderData) {
                     // Show loading state
-                    document.querySelector('#paypal-button-container').innerHTML = '<div style="text-align:center"><i class="fas fa-spinner fa-spin fa-2x"></i><p>Processing your payment...</p></div>';
+                    document.querySelector('#paypal-button-container').innerHTML = `
+                        <div style="text-align:center">
+                            <i class="fas fa-spinner fa-spin fa-2x"></i>
+                            <p>Processing your payment and booking...</p>
+                        </div>
+                    `;
                     
-                    // Redirect after 2 seconds to allow user to see the feedback
-                    setTimeout(function() {
-                        window.location.href = '/users/user.php?id=' + userId;
-                    }, 2000);
+                    // Send payment data to server
+                    fetch('submit_booking.php', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify({
+                            orderData: orderData,
+                            bookingDetails: <?php echo json_encode($bookingDetails); ?>,
+                            userId: userId
+                        })
+                    })
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.success) {
+                            window.location.href = 'users/user.php?id=' + userId;
+                        } else {
+                            alert('Booking failed: ' + data.message);
+                            window.location.href = 'reservation.php?id=' + tripId;
+                        }
+                    })
+                    .catch(error => {
+                        console.error('Error:', error);
+                        alert('An error occurred while processing your booking.');
+                        window.location.href = 'reservation.php?id=' + tripId;
+                    });
                 });
             },
             onError: (err) => {
