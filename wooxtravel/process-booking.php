@@ -13,3 +13,4 @@ if (!isset($_SESSION['booking_details'])) {
 $_SESSION['payment'] = $_SESSION['booking_details']['total'];
 header("Location: pay.php");
 exit();
+//
